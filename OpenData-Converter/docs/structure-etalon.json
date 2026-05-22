@@ -1,0 +1,7 @@
+[
+  {"fieldname": "ID", "description": "Уникальный идентификатор записи", "type": "number", "required": true},
+  {"fieldname": "Наименование", "description": "Наименование параметра", "type": "string", "required": true},
+  {"fieldname": "Значение", "description": "Текстовое значение параметра", "type": "string", "required": false},
+  {"fieldname": "Дата", "description": "Дата фиксации значения", "type": "date", "required": true},
+  {"fieldname": "Сумма", "description": "Суммовое значение", "type": "number", "required": false}
+]
