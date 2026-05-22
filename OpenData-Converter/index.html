@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конвертер открытых данных (МР 4.0)</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Экран приветствия и выбора раздела -->
+    <div id="welcomeScreen" class="screen active">
+        <div class="container">
+            <h1>📂 Конвертер открытых данных</h1>
+            <p class="subtitle">Подготовка наборов данных для портала data.gov.ru в соответствии с методическими рекомендациями версии 4.0</p>
+            
+            <div class="welcome-card">
+                <h2>Добро пожаловать!</h2>
+                <p>Выберите действие:</p>
+                
+                <div id="existingSectionsBlock" class="hidden">
+                    <h3>Ваши разделы:</h3>
+                    <div id="sectionsList" class="sections-list"></div>
+                </div>
+                
+                <div class="actions">
+                    <button id="btnCreateNewSection" class="btn btn-primary btn-lg">
+                        ➕ Создать новый раздел
+                    </button>
+                    <button id="btnImportSection" class="btn btn-secondary btn-lg">
+                        📥 Загрузить раздел из файла
+                    </button>
+                    <input type="file" id="importSectionFile" accept=".odsection" style="display:none">
+                </div>
+                
+                <div class="info-block">
+                    <h4>ℹ️ Как это работает:</h4>
+                    <ul>
+                        <li>Каждый пользователь создаёт свой раздел с наборами данных</li>
+                        <li>Все действия логируются для аудита</li>
+                        <li>Разделы можно сохранять и передавать коллегам</li>
+                        <li>При изменении приказа старые данные переходят в архив</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основной экран работы -->
+    <div id="mainScreen" class="screen hidden">
+        <!-- Шапка с навигацией -->
+        <header class="app-header">
+            <div class="header-left">
+                <button id="btnBackToWelcome" class="btn btn-sm">🏠 На главную</button>
+                <span class="current-section-name" id="currentSectionName">Раздел: Не выбран</span>
+            </div>
+            <div class="header-right">
+                <button id="btnExportSection" class="btn btn-sm">💾 Сохранить раздел</button>
+                <button id="btnViewLogs" class="btn btn-sm">📋 Журнал действий</button>
+                <button id="btnArchive" class="btn btn-sm">🗄️ Архив приказов</button>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Боковая панель с навигацией по шагам -->
+            <aside class="sidebar">
+                <nav class="steps-nav">
+                    <div class="step-item active" data-step="1">
+                        <span class="step-number">1</span>
+                        <span class="step-title">Приказ и реестр</span>
+                    </div>
+                    <div class="step-item" data-step="2">
+                        <span class="step-number">2</span>
+                        <span class="step-title">Выбор набора ОД</span>
+                    </div>
+                    <div class="step-item" data-step="3">
+                        <span class="step-number">3</span>
+                        <span class="step-title">Загрузка данных</span>
+                    </div>
+                    <div class="step-item" data-step="4">
+                        <span class="step-number">4</span>
+                        <span class="step-title">Структура и паспорт</span>
+                    </div>
+                    <div class="step-item" data-step="5">
+                        <span class="step-number">5</span>
+                        <span class="step-title">Конвертация и экспорт</span>
+                    </div>
+                </nav>
+                
+                <div class="user-info-panel">
+                    <h4>👤 Информация о пользователе</h4>
+                    <div id="userInfoDisplay">
+                        <p>ФИО: <span id="userName">Не указано</span></p>
+                        <p>Отдел: <span id="userDepartment">Не указано</span></p>
+                        <p>Телефон: <span id="userPhone">Не указан</span></p>
+                        <p>Email: <span id="userEmail">Не указан</span></p>
+                    </div>
+                    <button id="btnEditUserInfo" class="btn btn-sm btn-secondary">✏️ Редактировать</button>
+                </div>
+            </aside>
+
+            <!-- Основная рабочая область -->
+            <main class="workspace">
+                <!-- Шаг 1: Приказ и реестр -->
+                <div id="step1" class="step-content active">
+                    <h2>📜 Шаг 1: Загрузка приказа и реестра наборов ОД</h2>
+                    
+                    <div class="upload-section">
+                        <h3>1.1 Загрузка приказа <span class="tooltip-icon" title="Приказ, утверждающий наборы открытых данных в организации">❓</span></h3>
+                        <div class="file-upload-area" id="orderUploadArea">
+                            <input type="file" id="orderFile" accept=".xlsx,.xls,.doc,.docx,.odt,.pdf">
+                            <p>Перетащите файл приказа сюда или кликните для выбора</p>
+                            <small>Форматы: Excel, Word, PDF, ODT</small>
+                        </div>
+                        <div id="orderFileInfo" class="file-info hidden"></div>
+                    </div>
+
+                    <div class="upload-section">
+                        <h3>1.2 Загрузка реестра наборов ОД <span class="tooltip-icon" title="Реестр наборов открытых данных, утверждённых приказом">❓</span></h3>
+                        <div class="file-upload-area" id="registryUploadArea">
+                            <input type="file" id="registryFile" accept=".xlsx,.xls,.ods,.csv,.txt">
+                            <p>Перетащите файл реестра сюда или кликните для выбора</p>
+                            <small>Форматы: Excel, ODS, CSV, TXT</small>
+                        </div>
+                        <div id="registryFileInfo" class="file-info hidden"></div>
+                    </div>
+
+                    <div class="upload-section">
+                        <h3>1.3 Загрузка эталонной структуры <span class="tooltip-icon" title="Файл структуры данных, утверждённый приказом">❓</span></h3>
+                        <div class="file-upload-area" id="etalonUploadArea">
+                            <input type="file" id="etalonFile" accept=".xlsx,.xls,.ods,.csv,.txt,.json">
+                            <p>Перетащите файл эталонной структуры сюда или кликните для выбора</p>
+                            <small>Форматы: Excel, ODS, CSV, TXT, JSON</small>
+                        </div>
+                        <div id="etalonFileInfo" class="file-info hidden"></div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="btnStep1Next" class="btn btn-primary" disabled>Перейти к шагу 2 →</button>
+                    </div>
+                </div>
+
+                <!-- Шаг 2: Выбор набора ОД -->
+                <div id="step2" class="step-content hidden">
+                    <h2>📋 Шаг 2: Выбор набора открытых данных из реестра</h2>
+                    
+                    <div class="search-filter-panel">
+                        <div class="search-row">
+                            <div class="input-group">
+                                <input type="text" id="datasetSearch" placeholder="Поиск по наименованию набора...">
+                                <button id="btnClearSearch" class="btn btn-sm">✖</button>
+                            </div>
+                            <select id="filterOwner">
+                                <option value="">Все владельцы</option>
+                            </select>
+                            <select id="filterStatus">
+                                <option value="">Все статусы</option>
+                                <option value="active">Действующий</option>
+                                <option value="archive">Архив</option>
+                            </select>
+                            <button id="btnResetFilters" class="btn btn-secondary">Сбросить фильтры</button>
+                        </div>
+                        
+                        <div class="active-filters" id="activeFilters"></div>
+                        <div class="results-count" id="resultsCount">Найдено: 0 набор(а/ов)</div>
+                    </div>
+
+                    <div class="datasets-table-container">
+                        <table class="datasets-table" id="datasetsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Наименование</th>
+                                    <th>Владелец</th>
+                                    <th>Ответственное лицо</th>
+                                    <th>Статус</th>
+                                    <th>Описание</th>
+                                </tr>
+                            </thead>
+                            <tbody id="datasetsTableBody"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="pagination" id="pagination"></div>
+
+                    <div class="selected-dataset-info hidden" id="selectedDatasetInfo">
+                        <h3>✅ Выбранный набор данных:</h3>
+                        <div class="info-grid">
+                            <div><strong>ID:</strong> <span id="selDatasetId"></span></div>
+                            <div><strong>Наименование:</strong> <span id="selDatasetName"></span></div>
+                            <div><strong>Владелец:</strong> <span id="selDatasetOwner"></span></div>
+                            <div><strong>Ответственное лицо:</strong> <span id="selDatasetResponsible"></span></div>
+                            <div><strong>Статус:</strong> <span id="selDatasetStatus"></span></div>
+                            <div><strong>Описание:</strong> <span id="selDatasetDescription"></span></div>
+                        </div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="btnStep2Prev" class="btn btn-secondary">← Назад</button>
+                        <button id="btnStep2Next" class="btn btn-primary" disabled>Перейти к шагу 3 →</button>
+                    </div>
+                </div>
+
+                <!-- Шаг 3: Загрузка данных -->
+                <div id="step3" class="step-content hidden">
+                    <h2>📊 Шаг 3: Загрузка файла данных для конвертации</h2>
+                    
+                    <div class="upload-section">
+                        <h3>3.1 Загрузка файла данных <span class="tooltip-icon" title="Файл с данными в формате Excel, Word, Р7 Офис или CSV/TXT/JSON">❓</span></h3>
+                        <div class="file-upload-area" id="dataUploadArea">
+                            <input type="file" id="dataFile" accept=".xlsx,.xls,.ods,.doc,.docx,.odt,.csv,.txt,.json">
+                            <p>Перетащите файл данных сюда или кликните для выбора</p>
+                            <small>Форматы: Excel, Word, ODS, CSV, TXT, JSON</small>
+                        </div>
+                        <div id="dataFileInfo" class="file-info hidden"></div>
+                    </div>
+
+                    <div class="data-preview" id="dataPreview">
+                        <h3>Предварительный просмотр данных:</h3>
+                        <div class="table-container">
+                            <table id="previewTable" class="preview-table"></table>
+                        </div>
+                    </div>
+
+                    <div class="validation-result hidden" id="validationResult">
+                        <h3>🔍 Результаты сверки с эталонной структурой:</h3>
+                        <div id="validationDetails"></div>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="btnStep3Prev" class="btn btn-secondary">← Назад</button>
+                        <button id="btnStep3Next" class="btn btn-primary" disabled>Перейти к шагу 4 →</button>
+                    </div>
+                </div>
+
+                <!-- Шаг 4: Структура и паспорт -->
+                <div id="step4" class="step-content hidden">
+                    <h2>📝 Шаг 4: Формирование структуры и паспорта ОД</h2>
+                    
+                    <div class="tabs">
+                        <button class="tab-btn active" data-tab="structure">Структура данных</button>
+                        <button class="tab-btn" data-tab="passport">Паспорт ОД</button>
+                    </div>
+
+                    <div id="tabStructure" class="tab-content active">
+                        <h3>Автоматически сгенерированная структура:</h3>
+                        <div class="structure-info">
+                            <p>Структура формируется автоматически на основе загруженных данных и эталонного файла.</p>
+                        </div>
+                        <div class="table-container">
+                            <table id="structureTable" class="structure-table">
+                                <thead>
+                                    <tr>
+                                        <th>Поле (fieldname)</th>
+                                        <th>Описание</th>
+                                        <th>Тип данных</th>
+                                        <th>Обязательное</th>
+                                        <th>Пример</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="structureTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div id="tabPassport" class="tab-content hidden">
+                        <h3>Паспорт набора открытых данных (согласно МР 4.0):</h3>
+                        <form id="passportForm" class="passport-form">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label>1. Идентификационный номер (код) набора *</label>
+                                    <input type="text" id="passportId" required>
+                                    <span class="help-icon" data-help="Уникальный идентификатор набора данных в реестре">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>2. Наименование набора *</label>
+                                    <input type="text" id="passportTitle" required>
+                                    <span class="help-icon" data-help="Полное наименование набора открытых данных">❓</span>
+                                </div>
+                                
+                                <div class="form-group full-width">
+                                    <label>3. Описание набора *</label>
+                                    <textarea id="passportDescription" rows="3" required></textarea>
+                                    <span class="help-icon" data-help="Подробное описание содержания набора данных">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>4. Владелец набора *</label>
+                                    <input type="text" id="passportOwner" required>
+                                    <span class="help-icon" data-help="Наименование организации - владельца данных">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>5. Ответственное лицо *</label>
+                                    <input type="text" id="passportResponsible" required>
+                                    <span class="help-icon" data-help="ФИО ответственного за публикацию данных">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>6. Телефон ответственного лица *</label>
+                                    <input type="tel" id="passportPhone" required>
+                                    <span class="help-icon" data-help="Контактный телефон ответственного лица">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>7. Email ответственного лица *</label>
+                                    <input type="email" id="passportEmail" required>
+                                    <span class="help-icon" data-help="Электронная почта ответственного лица">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>9. Формат данных *</label>
+                                    <select id="passportFormat" required>
+                                        <option value="CSV">CSV</option>
+                                        <option value="JSON">JSON</option>
+                                        <option value="XML">XML</option>
+                                    </select>
+                                    <span class="help-icon" data-help="Машиночитаемый формат выходных данных">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>11. Дата первой публикации</label>
+                                    <input type="date" id="passportFirstPublish">
+                                    <span class="help-icon" data-help="Дата первой публикации набора">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>12. Дата последнего изменения</label>
+                                    <input type="date" id="passportLastUpdate">
+                                    <span class="help-icon" data-help="Дата последнего обновления данных">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>14. Дата актуальности *</label>
+                                    <input type="date" id="passportActualDate" required>
+                                    <span class="help-icon" data-help="Дата, по которой данные актуальны">❓</span>
+                                </div>
+                                
+                                <div class="form-group full-width">
+                                    <label>15. Ключевые слова *</label>
+                                    <input type="text" id="passportKeywords" placeholder="тег1, тег2, тег3" required>
+                                    <span class="help-icon" data-help="Ключевые слова через запятую для поиска">❓</span>
+                                </div>
+                                
+                                <div class="form-group full-width">
+                                    <label>13. Содержание последнего изменения</label>
+                                    <textarea id="passportLastChange" rows="2"></textarea>
+                                    <span class="help-icon" data-help="Описание изменений в последней версии">❓</span>
+                                </div>
+                                
+                                <div class="form-group">
+                                    <label>18. Версия методических рекомендаций</label>
+                                    <input type="text" id="passportMRVersion" value="4.0" readonly>
+                                    <span class="help-icon" data-help="Версия методических рекомендаций, которым соответствует набор">❓</span>
+                                </div>
+                            </div>
+                            
+                            <div class="form-actions">
+                                <button type="button" id="btnAutoFillPassport" class="btn btn-secondary">🔄 Автозаполнение из реестра</button>
+                                <button type="button" id="btnValidatePassport" class="btn btn-primary">✓ Проверить паспорт</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="btnStep4Prev" class="btn btn-secondary">← Назад</button>
+                        <button id="btnStep4Next" class="btn btn-primary">Перейти к шагу 5 →</button>
+                    </div>
+                </div>
+
+                <!-- Шаг 5: Конвертация и экспорт -->
+                <div id="step5" class="step-content hidden">
+                    <h2>📦 Шаг 5: Конвертация и скачивание результатов</h2>
+                    
+                    <div class="conversion-status" id="conversionStatus">
+                        <h3>Готовность к конвертации:</h3>
+                        <ul id="conversionChecklist">
+                            <li id="checkRegistry">❌ Реестр загружен</li>
+                            <li id="checkDataset">❌ Набор данных выбран</li>
+                            <li id="checkData">❌ Файл данных загружен</li>
+                            <li id="checkStructure">❌ Структура сформирована</li>
+                            <li id="checkPassport">❌ Паспорт заполнен</li>
+                        </ul>
+                    </div>
+
+                    <div class="output-formats">
+                        <h3>Выберите форматы выходных файлов:</h3>
+                        <label><input type="checkbox" id="outCSV" checked> CSV</label>
+                        <label><input type="checkbox" id="outJSON" checked> JSON (структура + данные)</label>
+                        <label><input type="checkbox" id="outXML"> XML</label>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button id="btnStep5Prev" class="btn btn-secondary">← Назад</button>
+                        <button id="btnConvert" class="btn btn-primary btn-lg">🚀 Конвертировать и скачать ZIP</button>
+                    </div>
+
+                    <div class="conversion-result hidden" id="conversionResult">
+                        <h3>✅ Конвертация завершена!</h3>
+                        <p>Сформированы файлы:</p>
+                        <ul id="resultFilesList"></ul>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Модальные окна -->
+    <div id="modalOverlay" class="modal-overlay hidden">
+        <div class="modal" id="userInfoModal">
+            <h3>👤 Информация о пользователе</h3>
+            <form id="userInfoForm">
+                <div class="form-group">
+                    <label>ФИО *</label>
+                    <input type="text" id="editUserName" required>
+                </div>
+                <div class="form-group">
+                    <label>Отдел *</label>
+                    <input type="text" id="editUserDepartment" required>
+                </div>
+                <div class="form-group">
+                    <label>Телефон</label>
+                    <input type="tel" id="editUserPhone">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="editUserEmail">
+                </div>
+                <div class="modal-actions">
+                    <button type="submit" class="btn btn-primary">Сохранить</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="modal" id="logsModal">
+            <h3>📋 Журнал действий</h3>
+            <div class="logs-container" id="logsContainer"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Закрыть</button>
+            </div>
+        </div>
+
+        <div class="modal" id="helpModal">
+            <h3 id="helpModalTitle">ℹ️ Справка</h3>
+            <div id="helpModalContent"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-primary" onclick="closeModal()">Понятно</button>
+            </div>
+        </div>
+
+        <div class="modal" id="archiveModal">
+            <h3>🗄️ Архив приказов</h3>
+            <div id="archiveContent"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeModal()">Закрыть</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Библиотеки -->
+    <script src="js/lib/xlsx.full.min.js"></script>
+    <script src="js/lib/papaparse.min.js"></script>
+    <script src="js/lib/FileSaver.min.js"></script>
+    <script src="js/lib/jszip.min.js"></script>
+    <script src="js/lib/docxtemplater.js"></script>
+    <script src="js/lib/pizzip.min.js"></script>
+    <script src="js/lib/pizzip-utils.js"></script>
+    
+    <!-- Основное приложение -->
+    <script src="app.js"></script>
+</body>
+</html>
