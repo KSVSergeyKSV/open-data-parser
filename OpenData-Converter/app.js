@@ -404,50 +404,175 @@ function handleFileUpload(event, fileType, infoId, callback) {
 function processRegistry(data, file) {
     try {
         let workbook;
+        let rawData = [];
+        let headers = [];
         
         if (file.name.endsWith('.csv') || file.name.endsWith('.txt')) {
             // Парсим CSV/TXT
-            const text = new TextDecoder('utf-8').decode(data);
+            const text = typeof data === 'string' ? data : new TextDecoder('utf-8').decode(data);
             const result = Papa.parse(text, {
                 header: true,
                 skipEmptyLines: true,
                 delimiter: '' // Автоопределение
             });
-            
-            appState.registryData = result.data.map((row, idx) => ({
-                id: row.id || row.ID || `DS-${idx + 1}`,
-                name: row.name || row.naimenovanie || row['Наименование'] || 'Без названия',
-                owner: row.owner || row.vladelets || row['Владелец'] || '',
-                responsible: row.responsible || row.otvetstvennoe_litso || row['Ответственное лицо'] || '',
-                status: row.status === 'archive' || row.status === 'Архив' ? 'archive' : 'active',
-                description: row.description || row.opisanie || row['Описание'] || ''
-            }));
+            headers = result.meta.fields || [];
+            rawData = result.data;
+        } else if (file.name.endsWith('.json')) {
+            // JSON файл
+            const text = typeof data === 'string' ? data : new TextDecoder('utf-8').decode(data);
+            rawData = JSON.parse(text);
+            if (rawData.length > 0) {
+                headers = Object.keys(rawData[0]);
+            }
         } else {
             // Парсим Excel
             workbook = XLSX.read(data, { type: 'array' });
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+            rawData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
             
-            appState.registryData = jsonData.map((row, idx) => ({
-                id: row.id || row.ID || `DS-${idx + 1}`,
-                name: row.name || row.naimenovanie || row['Наименование'] || 'Без названия',
-                owner: row.owner || row.vladelets || row['Владелец'] || '',
-                responsible: row.responsible || row.otvetstvennoe_litso || row['Ответственное лицо'] || '',
-                status: row.status === 'archive' || row.status === 'Архив' ? 'archive' : 'active',
-                description: row.description || row.opisanie || row['Описание'] || ''
-            }));
+            if (rawData.length > 0) {
+                headers = rawData[0];
+                rawData = rawData.slice(1).map(row => {
+                    const obj = {};
+                    headers.forEach((h, i) => obj[h] = row[i]);
+                    return obj;
+                });
+            }
         }
         
-        appState.filteredDatasets = [...appState.registryData];
-        populateOwnerFilter();
-        renderDatasetsTable();
+        // Пытаемся автоматически сопоставить колонки
+        const mapping = autoMapColumns(headers);
+        const missingFields = PASSPORT_FIELDS.filter(f => !mapping[f.id]);
         
-        addLog('REGISTRY_PROCESSED', `Загружено ${appState.registryData.length} наборов данных`);
+        if (missingFields.length > 0) {
+            // Не все поля найдены - показываем модальное окно маппинга
+            showMappingModal(headers, mapping, rawData);
+        } else {
+            // Все поля найдены - обрабатываем сразу
+            applyColumnMapping(mapping, rawData);
+        }
         
     } catch (err) {
         console.error('Ошибка обработки реестра:', err);
         alert('Ошибка при обработке реестра: ' + err.message);
     }
+}
+
+// Автоматическое сопоставление колонок
+function autoMapColumns(headers) {
+    const mapping = {};
+    const lowerHeaders = headers.map(h => String(h).toLowerCase().trim());
+    
+    PASSPORT_FIELDS.forEach(field => {
+        // Ищем точное совпадение
+        let foundIndex = lowerHeaders.findIndex(h => 
+            field.keys.some(key => h === key.toLowerCase())
+        );
+        
+        // Если не нашли - ищем частичное совпадение
+        if (foundIndex === -1) {
+            foundIndex = lowerHeaders.findIndex(h => 
+                field.keys.some(key => h.includes(key.toLowerCase()))
+            );
+        }
+        
+        if (foundIndex !== -1) {
+            mapping[field.id] = headers[foundIndex];
+        }
+    });
+    
+    return mapping;
+}
+
+// Показ модального окна маппинга
+function showMappingModal(headers, currentMapping, rawData) {
+    const modal = document.getElementById('mapping-modal');
+    const form = document.getElementById('mapping-form');
+    
+    form.innerHTML = '';
+    
+    PASSPORT_FIELDS.forEach(field => {
+        const isMapped = currentMapping[field.id];
+        const row = document.createElement('div');
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = '1fr 2fr';
+        row.style.gap = '10px';
+        row.style.alignItems = 'center';
+        
+        row.innerHTML = `
+            <label style="font-weight: bold;">${field.label}:</label>
+            <select class="mapping-select" data-field="${field.id}">
+                <option value="">-- Не выбрано --</option>
+                ${headers.map(h => `
+                    <option value="${h}" ${isMapped && currentMapping[field.id] === h ? 'selected' : ''}>
+                        ${h}
+                    </option>
+                `).join('')}
+            </select>
+        `;
+        
+        form.appendChild(row);
+    });
+    
+    // Сохраняем данные для последующего применения
+    appState.tempRawData = rawData;
+    appState.tempHeaders = headers;
+    
+    modal.style.display = 'block';
+    document.getElementById('modalOverlay').classList.remove('hidden');
+}
+
+// Закрытие модального окна
+function closeMappingModal() {
+    document.getElementById('mapping-modal').style.display = 'none';
+    document.getElementById('modalOverlay').classList.add('hidden');
+    appState.tempRawData = null;
+    appState.tempHeaders = null;
+}
+
+// Подтверждение маппинга
+function confirmMapping() {
+    const selects = document.querySelectorAll('.mapping-select');
+    const mapping = {};
+    
+    selects.forEach(select => {
+        const fieldId = select.getAttribute('data-field');
+        const value = select.value;
+        if (value) {
+            mapping[fieldId] = value;
+        }
+    });
+    
+    // Проверяем, что хотя бы основные поля заполнены
+    if (!mapping.title || !mapping.owner) {
+        alert('Обязательно укажите поля "Наименование набора" и "Владелец"!');
+        return;
+    }
+    
+    closeMappingModal();
+    applyColumnMapping(mapping, appState.tempRawData);
+}
+
+// Применение маппинга к данным
+function applyColumnMapping(mapping, rawData) {
+    appState.columnMapping = mapping;
+    
+    appState.registryData = rawData.map((row, idx) => ({
+        id: row[mapping.identifier] || row.id || row.ID || `DS-${idx + 1}`,
+        name: row[mapping.title] || 'Без названия',
+        owner: row[mapping.owner] || '',
+        responsible: row[mapping.responsiblePerson] || row[mapping.responsible] || '',
+        email: row[mapping.responsibleEmail] || '',
+        phone: row[mapping.responsiblePhone] || '',
+        description: row[mapping.description] || '',
+        status: row.status === 'archive' || row.status === 'Архив' || row.status === 'архивный' ? 'archive' : 'active'
+    }));
+    
+    appState.filteredDatasets = [...appState.registryData];
+    populateOwnerFilter();
+    renderDatasetsTable();
+    
+    addLog('REGISTRY_PROCESSED', `Загружено ${appState.registryData.length} наборов данных`);
 }
 
 // Обработка эталонной структуры
@@ -725,20 +850,23 @@ function selectDataset(datasetId) {
     appState.selectedDataset = dataset;
     renderDatasetsTable();
     
-    // Показываем информацию
-    const infoDiv = document.getElementById('selectedDatasetInfo');
-    infoDiv.classList.remove('hidden');
-    document.getElementById('selDatasetId').textContent = dataset.id;
-    document.getElementById('selDatasetName').textContent = dataset.name;
-    document.getElementById('selDatasetOwner').textContent = dataset.owner;
-    document.getElementById('selDatasetResponsible').textContent = dataset.responsible;
-    document.getElementById('selDatasetStatus').textContent = dataset.status === 'active' ? 'Действующий' : 'Архив';
-    document.getElementById('selDatasetDescription').textContent = dataset.description;
+    // Показываем информацию с новыми полями
+    const infoDiv = document.getElementById('selected-dataset-info');
+    if (infoDiv) {
+        infoDiv.style.display = 'block';
+        document.getElementById('selected-dataset-title').textContent = dataset.name;
+        document.getElementById('sel-owner').textContent = dataset.owner || '-';
+        document.getElementById('sel-person').textContent = dataset.responsible || '-';
+        document.getElementById('sel-email').textContent = dataset.email || '-';
+        document.getElementById('sel-phone').textContent = dataset.phone || '-';
+        document.getElementById('sel-desc').textContent = dataset.description || '-';
+    }
     
     addLog('SELECT_DATASET', `Выбран набор: ${dataset.id} - ${dataset.name}`);
     
     // Разблокируем кнопку перехода
-    document.getElementById('btnStep2Next').disabled = false;
+    const nextBtn = document.getElementById('btn-step-2-next');
+    if (nextBtn) nextBtn.disabled = false;
 }
 
 // Фильтрация наборов
@@ -1275,3 +1403,5 @@ window.changePage = changePage;
 window.removeFilter = removeFilter;
 window.closeModal = closeModal;
 window.selectDataset = selectDataset;
+window.closeMappingModal = closeMappingModal;
+window.confirmMapping = confirmMapping;
